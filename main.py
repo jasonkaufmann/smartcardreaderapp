@@ -1,6 +1,6 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QTextEdit, QLineEdit, QLabel, QHBoxLayout
-from PyQt5 import QtGui  # PyQt5
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QTextEdit, QLineEdit, QLabel, QHBoxLayout, QComboBox
+from PyQt5 import QtGui
 from smartcard.System import readers
 from smartcard.util import toHexString, toBytes
 import random
@@ -8,16 +8,65 @@ import random
 class SmartCardApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.memorySize = 256  # Default memory size for SLE5542
         self.initUI()
-        self.select_card_type()
-        self.memorySize = 256  # Memory size set to 256 bytes
 
     def initUI(self):
         self.setGeometry(100, 100, 1000, 750)
         self.setWindowTitle('Smart Card Reader and Writer')
 
-        layout = QVBoxLayout()
+        self.layout = QVBoxLayout()
+        
+        # Chip type selection dropdown
+        self.chipTypeComboBox = QComboBox()
+        self.chipTypeComboBox.addItem("SLE5542")
+        self.chipTypeComboBox.addItem("AT24C64")
+        self.chipTypeComboBox.currentIndexChanged.connect(self.updateUIBasedOnChipType)
+        self.layout.addWidget(self.chipTypeComboBox)
+        
+        # Placeholder for dynamic content based on chip type
+        self.dynamicContentLayout = QVBoxLayout()
+        self.layout.addLayout(self.dynamicContentLayout)
+        
+        self.setLayout(self.layout)
+        self.updateUIBasedOnChipType()  # Initialize UI for default selection
 
+    def clearLayout(self, layout):
+        """Recursively remove all items from a layout."""
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+            else:
+                self.clearLayout(item.layout())
+
+    def updateUIBasedOnChipType(self):
+        chipType = self.chipTypeComboBox.currentText()
+        
+         # Clear dynamic content
+        for i in reversed(range(self.dynamicContentLayout.count())): 
+            layoutItem = self.dynamicContentLayout.itemAt(i)
+            if layoutItem.widget():
+                # If the item is a widget, remove it from the layout and set its parent to None (deletes the widget)
+                widget = layoutItem.widget()
+                self.dynamicContentLayout.removeWidget(widget)
+                widget.setParent(None)
+            elif layoutItem.layout():
+                # If the item is a layout, recursively remove all items from this layout and then delete the layout
+                self.clearLayout(layoutItem.layout())
+                layoutItem.layout().setParent(None)
+
+        if chipType == "SLE5542":
+            self.setupUIForSLE5542()
+            self.select_card_type()
+        elif chipType == "AT24C64":
+            self.setupUIForAT24C64()
+            self.select_card_type_atmel()
+            self.select_page_size()
+
+    def setupUIForSLE5542(self):
+        # Create a layout for read operations
         readLayout = QHBoxLayout()
         self.readAddressInput = QLineEdit()
         self.readLengthInput = QLineEdit()
@@ -27,20 +76,24 @@ class SmartCardApp(QWidget):
         readLayout.addWidget(self.readAddressInput)
         readLayout.addWidget(QLabel('Length (Dec):'))
         readLayout.addWidget(self.readLengthInput)
-        layout.addLayout(readLayout)
+        self.dynamicContentLayout.addLayout(readLayout)  # Add to dynamic content layout
 
+        # Add test button
         self.testButton = QPushButton('Run Automated Test')
         self.testButton.clicked.connect(self.run_automated_test)
-        layout.addWidget(self.testButton)
+        self.dynamicContentLayout.addWidget(self.testButton)  # Add to dynamic content layout
 
+        # Add UID text edit
         self.uidTextEdit = QTextEdit()
         self.uidTextEdit.setReadOnly(True)
-        layout.addWidget(self.uidTextEdit)
+        self.dynamicContentLayout.addWidget(self.uidTextEdit)  # Add to dynamic content layout
 
+        # Add read button
         self.readButton = QPushButton('Read Data')
         self.readButton.clicked.connect(self.readCardData)
-        layout.addWidget(self.readButton)
+        self.dynamicContentLayout.addWidget(self.readButton)  # Add to dynamic content layout
 
+        # Create a layout for write operations
         writeLayout = QHBoxLayout()
         self.writeAddressInput = QLineEdit()
         self.writeDataInput = QLineEdit()
@@ -50,28 +103,154 @@ class SmartCardApp(QWidget):
         writeLayout.addWidget(self.writeAddressInput)
         writeLayout.addWidget(QLabel('Data (Hex):'))
         writeLayout.addWidget(self.writeDataInput)
-        layout.addLayout(writeLayout)
+        self.dynamicContentLayout.addLayout(writeLayout)  # Add to dynamic content layout
 
+        # Add write button
         self.writeButton = QPushButton('Write Data')
         self.writeButton.clicked.connect(self.writeCardData)
-        layout.addWidget(self.writeButton)
+        self.dynamicContentLayout.addWidget(self.writeButton)  # Add to dynamic content layout
 
-        # Add a button for reading the PSC
+        # Add buttons for PSC reading, clearing text, and reading protection bits
         self.readPSCButton = QPushButton('Read PSC')
-        self.readPSCButton.clicked.connect(self.read_psc_display)  # Connect to the slot method
-        layout.addWidget(self.readPSCButton)
+        self.readPSCButton.clicked.connect(self.read_psc_display)
+        self.dynamicContentLayout.addWidget(self.readPSCButton)  # Add to dynamic content layout
 
-        # Add a button for clearing the text edit widget
         self.clearButton = QPushButton('Clear')
-        self.clearButton.clicked.connect(self.clearText)  # Connect to the slot method for clearing text
-        layout.addWidget(self.clearButton)
+        self.clearButton.clicked.connect(self.clearText)
+        self.dynamicContentLayout.addWidget(self.clearButton)  # Add to dynamic content layout
 
-        # Add a button for reading protection bits
         self.readProtectionButton = QPushButton('Read Protection Bits')
-        self.readProtectionButton.clicked.connect(self.read_protection_bits)  # Connect to the slot method
-        layout.addWidget(self.readProtectionButton)
+        self.readProtectionButton.clicked.connect(self.read_protection_bits)
+        self.dynamicContentLayout.addWidget(self.readProtectionButton)  # Add to dynamic content layout
 
-        self.setLayout(layout)
+
+    def setupUIForAT24C64(self):
+        # Create a layout for read operations
+        readLayout = QHBoxLayout()
+        self.readAddressInput = QLineEdit()
+        self.readLengthInput = QLineEdit()
+        self.readAddressInput.setPlaceholderText("Hex, e.g., 0xFF")
+        self.readLengthInput.setPlaceholderText("Decimal, e.g., 16")
+        readLayout.addWidget(QLabel('Read Address (Hex):'))
+        readLayout.addWidget(self.readAddressInput)
+        readLayout.addWidget(QLabel('Length (Dec):'))
+        readLayout.addWidget(self.readLengthInput)
+        self.dynamicContentLayout.addLayout(readLayout)  # Add to dynamic content layout
+
+        # Add UID text edit
+        self.uidTextEdit = QTextEdit()
+        self.uidTextEdit.setReadOnly(True)
+        self.dynamicContentLayout.addWidget(self.uidTextEdit)  # Add to dynamic content layout
+
+        # Add read button
+        self.readButton = QPushButton('Read Data')
+        self.readButton.clicked.connect(self.readCardDataAtmel)
+        self.dynamicContentLayout.addWidget(self.readButton)  # Add to dynamic content layout
+
+        # Create a layout for write operations
+        writeLayout = QHBoxLayout()
+        self.writeAddressInput = QLineEdit()
+        self.writeDataInput = QLineEdit()
+        self.writeAddressInput.setPlaceholderText("Hex, e.g., 0xAF")
+        self.writeDataInput.setPlaceholderText("Hex, e.g., 01AB")
+        writeLayout.addWidget(QLabel('Write Address (Hex):'))
+        writeLayout.addWidget(self.writeAddressInput)
+        writeLayout.addWidget(QLabel('Data (Hex):'))
+        writeLayout.addWidget(self.writeDataInput)
+        self.dynamicContentLayout.addLayout(writeLayout)  # Add to dynamic content layout
+
+        # Add write button
+        self.writeButton = QPushButton('Write Data')
+        self.writeButton.clicked.connect(self.writeCardDataAtmel)
+        self.dynamicContentLayout.addWidget(self.writeButton)  # Add to dynamic content layout
+
+        self.clearButton = QPushButton('Clear')
+        self.clearButton.clicked.connect(self.clearText)
+        self.dynamicContentLayout.addWidget(self.clearButton)  # Add to dynamic content layout
+
+    def readCardDataAtmel(self):
+        self.uidTextEdit.append(' ')
+        try:
+            address = int(self.readAddressInput.text(), 16)  # Address is always expected in hex
+            length = int(self.readLengthInput.text())  # Length is expected in decimal
+        except ValueError:
+            self.uidTextEdit.append('Error: Invalid input. Please enter valid hexadecimal address and decimal length.')
+            return
+
+        if address < 0 or length <= 0:
+            self.uidTextEdit.append('Error: Address must be a positive hexadecimal number and length must be a positive decimal number.')
+            return
+        
+        command = [0xFF, 0xB0, address >> 8, address & 0xFF, length]  # Adjust address bytes as needed
+        data, sw1, sw2 = self.connection.transmit(command)
+        if (sw1, sw2) == (0x90, 0x00):
+            self.uidTextEdit.append(f'Addr: h\'{address:X}\', Length: d\'{length}\'')
+            self.uidTextEdit.append(toHexString(data))
+            return data
+        else:
+            self.uidTextEdit.append(f"Error reading memory with SW1 SW2 = {sw1:02X} {sw2:02X}")
+            return None
+    
+    def writeCardDataAtmel(self):
+        self.uidTextEdit.append(' ')
+        try:
+            address = int(self.writeAddressInput.text(), 16)  # Address is always expected in hex
+        except ValueError:
+            self.uidTextEdit.append('Error: Invalid input. Please enter a valid hexadecimal address.')
+            return
+
+        if address < 0:
+            self.uidTextEdit.append('Error: Address must be a positive hexadecimal number.')
+            return
+            
+        dataToWrite = toBytes(self.writeDataInput.text())
+        if not dataToWrite:
+            self.uidTextEdit.append('Error: Data to write is null.')
+            return
+        if len(dataToWrite) > 32:
+            self.uidTextEdit.append('Error: Data length exceeds page size.')
+            return
+        
+        # Convert the data to be written into a hex string for display
+        dataToWriteHex = ' '.join([f'{byte:02X}' for byte in dataToWrite])
+        
+        command = [0xFF, 0xD0, address >> 8, address & 0xFF, len(dataToWrite)] + dataToWrite
+        _, sw1, sw2 = self.connection.transmit(command)
+        if (sw1, sw2) == (0x90, 0x00):
+            self.uidTextEdit.append(f'Addr: h\'{address:X}\', Length: d\'{len(dataToWrite)}\', Data: h\'{dataToWriteHex}\', Data written successfully')
+        else:
+            self.uidTextEdit.append(f'Failed to write data with SW1 SW2 = {sw1:02X} {sw2:02X}')
+
+    def select_page_size(self):
+        command = [0xFF, 0x01, 0x00, 0x00, 0x01, 0x05]  # Command to select 32-byte page size
+        data, sw1, sw2 = self.connection.transmit(command)
+        if (sw1, sw2) == (0x90, 0x00):
+            self.uidTextEdit.append('Page size selected successfully.')
+        else:
+            self.uidTextEdit.append(f"Error selecting page size with SW1 SW2 = {sw1:02X} {sw2:02X}")
+
+    def select_card_type_atmel(self):
+        try:
+            r = readers()
+            if not r:
+                self.uidTextEdit.append('No readers available')
+                return
+            
+            reader = r[0]  # Assuming you are using the first reader
+            self.connection = reader.createConnection()
+            self.connection.connect()
+            
+            # Append the name of the reader to the text edit widget
+            self.uidTextEdit.append(f'Connected to reader: {reader}')
+            command = [0xFF, 0xA4, 0x00, 0x00, 0x01, 0x02]  # Command to select the AT24C64 card
+            data, sw1, sw2 = self.connection.transmit(command)
+            if (sw1, sw2) == (0x90, 0x00):
+                self.uidTextEdit.append('Card type selected successfully.')
+            else:
+                self.uidTextEdit.append(f"Error selecting card type with SW1 SW2 = {sw1:02X} {sw2:02X}")
+        except Exception as e:
+            print(f"Error selecting card type: {str(e)}")
+            self.uidTextEdit.append(f"Error selecting card type: {str(e)}")
 
     def clearText(self):
         self.uidTextEdit.clear()
