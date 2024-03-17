@@ -1,0 +1,33 @@
+{
+    "gender": "Male",
+    "first_names": "Jason",
+    "last_names": "Kaufmann",
+    "other_names": "Other name",
+    "email": "test_update@gmail.com",
+    "country": "United States",
+    "country_phone": "+1",
+    "timezone": "US/Alaska",
+    "phone": "1212121212",
+    "address_line_1": "111 First Street",
+    "address_line_2": "Apt 1111",
+    "city": "New York",
+    "state_province_territory": "New York",
+    "postal_code": "11111",
+    "username": "testusername",
+    "password": "pword",
+    "passcode": "1212",
+    "profile_video": "captured_video_with_audio.mp4",
+    "profile_picture": "captured_image.jpg",
+    "fingerprint_images": [
+        "finger_4.jpeg",
+        "finger_5.jpeg",
+        "finger_7.jpeg",
+        "finger_3.jpeg",
+        "finger_9.jpeg",
+        "finger_0.jpeg",
+        "finger_6.jpeg",
+        "finger_2.jpeg",
+        "finger_1.jpeg",
+        "finger_8.jpeg"
+    ]
+}
